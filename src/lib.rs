@@ -1,14 +1,21 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+#![no_std]
+
+use gstd::{};
+use pebbles_game_io::*;
+
+static mut PEBBLES_GAME: Option<GameState> = None;
+
+#[no_mangle]
+extern "C" fn init(){
+    // YOUR CODE HERE
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[no_mangle]
+extern "C" fn handle(){
+    // YOUR CODE HERE
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+#[no_mangle]
+extern "C" fn state(){
+    // YOUR CODE HERE
 }

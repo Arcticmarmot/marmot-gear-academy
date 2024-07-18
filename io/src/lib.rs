@@ -1,14 +1,63 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+#![no_std]
+
+use gmeta::{In, InOut, Out, Metadata};
+use gstd::prelude::*;
+
+pub struct PebblesMetadata;
+
+impl Metadata for PebblesMetadata {
+    type Init = In<PebblesInit>;
+    type Handle = InOut<PebblesAction, PebblesEvent>;
+    type State = Out<GameState>;
+    type Reply = ();
+    type Others = ();
+    type Signal = ();
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Debug, Default, Clone, Encode, Decode, TypeInfo)]
+pub struct PebblesInit {
+    pub difficulty: DifficultyLevel,
+    pub pebbles_count: u32,
+    pub max_pebbles_per_turn: u32,
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+#[derive(Debug, Default, Clone, Encode, Decode, TypeInfo)]
+pub enum DifficultyLevel {
+    #[default]
+    Easy,
+    Hard,
+}
+
+#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
+pub enum PebblesAction {
+    Turn(u32),
+    GiveUp,
+    Restart {
+        difficulty: DifficultyLevel,
+        pebbles_count: u32,
+        max_pebbles_per_turn: u32,
+    },
+}
+
+#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
+pub enum PebblesEvent {
+    CounterTurn(u32),
+    Won(Player),
+}
+
+#[derive(Debug, Default, Clone, Encode, Decode, TypeInfo)]
+pub enum Player {
+    #[default]
+    User,
+    Program,
+}
+
+#[derive(Debug, Default, Clone, Encode, Decode, TypeInfo)]
+pub struct GameState {
+    pub pebbles_count: u32,
+    pub max_pebbles_per_turn: u32,
+    pub pebbles_remaining: u32,
+    pub difficulty: DifficultyLevel,
+    pub first_player: Player,
+    pub winner: Option<Player>,
 }
