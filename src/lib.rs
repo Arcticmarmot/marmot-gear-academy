@@ -8,47 +8,73 @@ static mut PEBBLES_GAME: Option<GameState> = None;
 #[no_mangle]
 extern "C" fn init(){
     let init_msg: PebblesInit = msg::load().expect("Unable to load the init message");
-    restart(init_msg.difficulty, init_msg.pebbles_count, init_msg.max_pebbles_per_turn);
+    if init_msg.pebbles_count <= init_msg.max_pebbles_per_turn {
+        let pebbles_game = unsafe{ PEBBLES_GAME.get_or_insert(Default::default()) };
+        pebbles_game.difficulty = init_msg.difficulty;
+        pebbles_game.pebbles_count = 0;
+        pebbles_game.max_pebbles_per_turn = 0;
+        pebbles_game.winner = Some(Player::Program);
+    } else {
+        restart(init_msg.difficulty, init_msg.pebbles_count, init_msg.max_pebbles_per_turn);
+    }
 }
 
 #[no_mangle]
 extern "C" fn handle(){
+    let pebbles_game: &mut GameState = unsafe{ PEBBLES_GAME.get_or_insert(Default::default()) };
     let action = msg::load().expect("Unable to load the action");
-    let pebbles_game = unsafe{ PEBBLES_GAME.get_or_insert(Default::default()) };
     match action {
-        PebblesAction::GiveUp => {
-            pebbles_game.winner = Some(Player::Program);
-            let _ = msg::reply(
-                PebblesEvent::Won(pebbles_game.winner.as_ref().expect("Winner").clone()), 
-                0);
-        }
         PebblesAction::Restart { difficulty, pebbles_count, max_pebbles_per_turn } => {
-            restart(difficulty.clone(), pebbles_count, max_pebbles_per_turn);
-            // let _ = msg::reply(PebblesInit{
-            //     difficulty,
-            //     pebbles_count,
-            //     max_pebbles_per_turn
-            // }, 0);
-            let pebbles_game = unsafe{ PEBBLES_GAME.get_or_insert(Default::default()) };
-            let _ = msg::reply(PebblesEvent::CounterTurn(pebbles_game.pebbles_remaining), 0);
+            if pebbles_count <= max_pebbles_per_turn {
+                pebbles_game.difficulty = difficulty;
+                pebbles_game.pebbles_count = 0;
+                pebbles_game.max_pebbles_per_turn = 0;
+                pebbles_game.winner = Some(Player::Program);
+                let _ = msg::reply(PebblesEvent::Won(pebbles_game.winner.as_ref().expect("winner").clone()), 0);
+            } else {
+                restart(difficulty.clone(), pebbles_count, max_pebbles_per_turn);
+                let pebbles_game = unsafe{ PEBBLES_GAME.get_or_insert(Default::default()) };
+                let _ = msg::reply(PebblesEvent::CounterTurn(pebbles_game.pebbles_remaining), 0);
+            }
+        }
+        PebblesAction::GiveUp => {
+            match pebbles_game.winner {
+                Some(Player::Program) | Some(Player::User) => {
+                    let _ = msg::reply(
+                        PebblesEvent::Won(pebbles_game.winner.as_ref().expect("Winner").clone()), 
+                        0);
+                }
+                None => {
+                    pebbles_game.winner = Some(Player::Program);
+                    let _ = msg::reply(
+                        PebblesEvent::Won(pebbles_game.winner.as_ref().expect("Winner").clone()), 
+                        0);
+                }
+            }
         }
         PebblesAction::Turn(mut pebbles_remove_num) => {
-            // Player::User开始执行
-            pebbles_remove_num = regular_num(pebbles_remove_num, pebbles_game);
-            remove_pebbles(pebbles_remove_num, pebbles_game);
-            if pebbles_game.pebbles_remaining == 0 {
-                pebbles_game.winner = Some(Player::User);
-                let _ = msg::reply(PebblesEvent::Won(pebbles_game.winner.as_ref().expect("winner").clone()), 0);
-                exec::leave();
-            } else {
-                pebbles_remove_num = get_pebbles_remove_num(&pebbles_game);
-                remove_pebbles(pebbles_remove_num, pebbles_game);
-                if pebbles_game.pebbles_remaining == 0 {
-                    pebbles_game.winner = Some(Player::Program);
-                    let _ = msg::reply(PebblesEvent::Won(pebbles_game.winner.as_ref().expect("winner").clone()), 0);
-                    exec::leave();
-                } else {
-                    let _ = msg::reply(PebblesEvent::CounterTurn(pebbles_game.pebbles_remaining), 0);
+            match pebbles_game.winner {
+                Some(Player::Program) | Some(Player::User) => {
+                    let _ = msg::reply(
+                        PebblesEvent::Won(pebbles_game.winner.as_ref().expect("Winner").clone()), 
+                        0);
+                }
+                None => {
+                    pebbles_remove_num = regular_num(pebbles_remove_num, pebbles_game);
+                    remove_pebbles(pebbles_remove_num, pebbles_game);
+                    if pebbles_game.pebbles_remaining == 0 {
+                        pebbles_game.winner = Some(Player::User);
+                        let _ = msg::reply(PebblesEvent::Won(pebbles_game.winner.as_ref().expect("winner").clone()), 0);
+                    } else {
+                        pebbles_remove_num = get_pebbles_remove_num(&pebbles_game);
+                        remove_pebbles(pebbles_remove_num, pebbles_game);
+                        if pebbles_game.pebbles_remaining == 0 {
+                            pebbles_game.winner = Some(Player::Program);
+                            let _ = msg::reply(PebblesEvent::Won(pebbles_game.winner.as_ref().expect("winner").clone()), 0);
+                        } else {
+                            let _ = msg::reply(PebblesEvent::CounterTurn(pebbles_game.pebbles_remaining), 0);
+                        }
+                    }
                 }
             }
         }
@@ -74,8 +100,7 @@ fn get_random_u32() -> u32 {
  * 重新开始游戏
  */
 fn restart(init_msg_difficulty: DifficultyLevel, init_msg_pebbles_count: u32, init_msg_max_pebbles_per_turn: u32) {
-    // TODO: 随机
-    let first_player: Player = Player::Program; // if get_random_u32() % 2 == 0 { Player::User } else { Player::Program };
+    let first_player: Player = if get_random_u32() % 2 == 0 { Player::User } else { Player::Program };
     let mut pebbles_game = GameState {
         difficulty: init_msg_difficulty,
         pebbles_count: init_msg_pebbles_count,
