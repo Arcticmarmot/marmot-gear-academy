@@ -162,6 +162,14 @@ pub fn check_and_reply(pebbles_game: &mut GameState, player: Player){
 pub fn get_pebbles_remove_num(pebbles_game: &GameState) -> u32{
     match pebbles_game.difficulty {
         DifficultyLevel::Easy => (get_random_u32() % (pebbles_game.max_pebbles_per_turn)) + 1,
-        DifficultyLevel::Hard => (get_random_u32() % (pebbles_game.max_pebbles_per_turn)) + 1,
+        DifficultyLevel::Hard => {
+            let factor = pebbles_game.max_pebbles_per_turn + 1;
+            let remain = pebbles_game.pebbles_remaining;
+            if remain % factor == 0 {
+                (get_random_u32() % (pebbles_game.max_pebbles_per_turn)) + 1
+            } else {
+                remain % factor
+            }
+        }
     }
 }
